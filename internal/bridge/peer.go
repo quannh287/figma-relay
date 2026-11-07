@@ -98,7 +98,10 @@ func (p *Peer) Call(ctx context.Context, file, command string, params any, timeo
 		return nil, fmt.Errorf("send to bridge owner: %w", err)
 	}
 
-	timer := time.NewTimer(timeout + 10*time.Second)
+	// The owner may hold this command in the plugin's queue before running it,
+	// and only it knows for how long. Outwait that queue, or a peer session
+	// would report a timeout for a command the owner has not dispatched yet.
+	timer := time.NewTimer(timeout + maxQueueWait + 10*time.Second)
 	defer timer.Stop()
 	select {
 	case resp := <-ch:
@@ -111,7 +114,7 @@ func (p *Peer) Call(ctx context.Context, file, command string, params any, timeo
 		return nil, ctx.Err()
 	case <-timer.C:
 		unregister()
-		return nil, withKind(ErrTimeout, fmt.Sprintf("bridge owner did not answer %q within %s", command, timeout))
+		return nil, withKind(ErrTimeout, fmt.Sprintf("bridge owner did not answer %q within %s (plus its queue wait)", command, timeout))
 	}
 }
 

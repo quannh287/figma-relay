@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -299,5 +300,95 @@ func TestRouterElection(t *testing.T) {
 	files, err := r2.Files(ctx)
 	if err != nil || len(files) != 2 {
 		t.Fatalf("peer Files: %v, %v", files, err)
+	}
+}
+
+// Two sessions driving one file must not run inside the plugin at the same
+// time: its message handler is async and would interleave their commands.
+func TestCallsToOnePluginDoNotOverlap(t *testing.T) {
+	b := New()
+	base := startBridge(t, b)
+	var mu sync.Mutex
+	running, maxRunning := 0, 0
+	fakePlugin(t, b, base, "Shared File", func(req Request) *Response {
+		mu.Lock()
+		running++
+		if running > maxRunning {
+			maxRunning = running
+		}
+		mu.Unlock()
+		time.Sleep(80 * time.Millisecond)
+		mu.Lock()
+		running--
+		mu.Unlock()
+		return &Response{ID: req.ID, Result: json.RawMessage(`{}`)}
+	})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := b.CallFile(context.Background(), "", "slow", nil, DefaultTimeout); err != nil {
+				t.Errorf("CallFile: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	mu.Lock()
+	defer mu.Unlock()
+	if maxRunning != 1 {
+		t.Fatalf("plugin ran %d commands at once, want 1", maxRunning)
+	}
+}
+
+// Queue time is not the caller's time: a short call waiting behind a long one
+// must get its full timeout once the window is free.
+func TestQueueWaitIsOutsideTheCallTimeout(t *testing.T) {
+	b := New()
+	base := startBridge(t, b)
+	fakePlugin(t, b, base, "Shared File", func(req Request) *Response {
+		if req.Command == "slow" {
+			time.Sleep(300 * time.Millisecond)
+		}
+		return &Response{ID: req.ID, Result: json.RawMessage(`{}`)}
+	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if _, err := b.CallFile(context.Background(), "", "slow", nil, time.Second); err != nil {
+			t.Errorf("slow call: %v", err)
+		}
+	}()
+	waitUntil(t, "the slow call to take the window", func() bool { return b.inflight(1) > 0 })
+
+	// 150ms would expire while queued behind the 300ms call if waiting counted.
+	if _, err := b.CallFile(context.Background(), "", "quick", nil, 150*time.Millisecond); err != nil {
+		t.Fatalf("quick call behind a slow one: %v", err)
+	}
+	<-done
+}
+
+// A caller whose context dies while queued must say so, not report a timeout
+// that implies the command reached Figma.
+func TestQueuedCallHonoursContext(t *testing.T) {
+	b := New()
+	base := startBridge(t, b)
+	release := make(chan struct{})
+	fakePlugin(t, b, base, "Shared File", func(req Request) *Response {
+		<-release
+		return &Response{ID: req.ID, Result: json.RawMessage(`{}`)}
+	})
+	t.Cleanup(func() { close(release) })
+
+	go b.CallFile(context.Background(), "", "blocking", nil, 5*time.Second)
+	waitUntil(t, "the blocking call to take the window", func() bool { return b.inflight(1) > 0 })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, err := b.CallFile(ctx, "", "queued", nil, DefaultTimeout)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("queued call error = %v, want context deadline", err)
 	}
 }
