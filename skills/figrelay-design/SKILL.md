@@ -103,8 +103,14 @@ Default for anything token-shaped (importing 150 variables as 150 calls is absur
 and for bulk rebinding. Single edits stay on the atomic tools: they fail with a
 precise error, while a half-failed script leaves the document half-changed.
 
+- **Authoring a library component is script work, not atomic work.** `create_component`
+  only converts an existing frame, so a nested auto-layout component costs ~15
+  atomic calls; build the whole structure in one script and return the new ids.
 - **A thrown script keeps everything it already created.** Write find-or-create
   scripts keyed by name so a retry adopts the orphan instead of duplicating it.
+  Re-run with the same token, or return the created ids and delete by id. If you
+  must clean up by hand, never match on name alone — the same names exist inside
+  sections as real work; require the node to be an orphan at page root too.
 - **Read the line number before retrying.** The throw is often on the *return*
   line — e.g. `return { n: figma.getLocalTextStyles().length }` — meaning the work
   completed and only the summary failed. Inspect the document, then decide.

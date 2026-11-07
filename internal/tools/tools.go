@@ -619,7 +619,8 @@ func Register(s *mcp.Server, b *bridge.Router) {
 			"This is the only way to restyle text after create_text, e.g. to toggle a label between Regular and Bold for a variant.",
 		bridge.DefaultTimeout)
 	registerBridged[groupArgs](s, b, "group_nodes",
-		"Group the given nodes into a new GROUP in the first node's parent.",
+		"Group the given nodes into a new GROUP in the first node's parent. A GROUP only bounds its children — it has no padding, "+
+			"spacing or layout, so when the container should lay its children out, create a FRAME with create_shape and set_auto_layout instead.",
 		bridge.DefaultTimeout)
 	registerBridged[ungroupArgs](s, b, "ungroup_nodes",
 		"Ungroup GROUP or FRAME nodes, releasing their children into the parent.",
@@ -637,7 +638,8 @@ func Register(s *mcp.Server, b *bridge.Router) {
 		"List font families (and their styles) available in Figma, optionally filtered by family name substring.",
 		bridge.DefaultTimeout)
 	registerBridged[createComponentArgs](s, b, "create_component",
-		"Convert an existing FRAME into a reusable COMPONENT.",
+		"Convert an existing FRAME into a reusable COMPONENT. It does not build one: create and style the frame first, "+
+			"with create_shape for a flat frame or a single run_script for anything nested.",
 		bridge.DefaultTimeout)
 	// Searching every page can be slow in big files, so give it the long timeout.
 	registerBridged[emptyArgs](s, b, "get_local_components",
@@ -704,10 +706,14 @@ func Register(s *mcp.Server, b *bridge.Router) {
 		"Bind a variable to a node field such as fills, strokes, width, opacity or cornerRadius.",
 		bridge.DefaultTimeout)
 	registerBridged[setTextArgs](s, b, "set_characters",
-		"Replace the text content (characters) of an existing TEXT node.",
+		"Replace the text content (characters) of an existing TEXT node. Content only: font, size, alignment and color go through "+
+			"set_text_properties, and a label driven by a TEXT component property through set_instance_properties, "+
+			"which records the override as a property instead of a detached edit.",
 		bridge.DefaultTimeout)
 	registerBridged[setFillArgs](s, b, "set_fills",
-		"Set a solid color (hex) or a linear/radial gradient fill on one or many nodes, or remove their fills with color: \"none\".",
+		"Set a solid color (hex) or a linear/radial gradient fill on one or many nodes, or remove their fills with color: \"none\". "+
+			"Check get_variable_defs and get_local_styles first: where a token or paint style exists, bind it with set_bound_variable or "+
+			"apply_style instead — a hard-coded hex over a token is a bug the designer has to undo by hand.",
 		bridge.DefaultTimeout)
 	registerBridged[moveArgs](s, b, "move_nodes",
 		"Move one or more nodes to new x/y positions within their parents.",
@@ -754,7 +760,8 @@ func Register(s *mcp.Server, b *bridge.Router) {
 	// Figma, so the timeout needs to say that rather than invite a retry.
 	mcp.AddTool(s, &mcp.Tool{Name: "run_script", Annotations: annotations("run_script"), Description: "Run a JavaScript body against the Figma Plugin API in one call — the escape hatch for bulk work that would otherwise cost " +
 		"hundreds of atomic calls, such as binding a variable to every white fill in a subtree. " +
-		"figma is in scope, await is allowed, and the returned value (plain data only) becomes the result; return nothing and you get a count of what was created. " +
+		"figma is in scope, await is allowed, and the returned value (plain data only) becomes the result; return nothing and you only get ok. " +
+		"Return the id of every node the script creates — nothing else records them, so a later failure leaves orphans you can only guess at by name. " +
 		"This is the real Figma Plugin API, not another tool's sandbox: there is no node.query(), node.set() or node.screenshot(), " +
 		"and createAutoLayout(direction, props) exists only as helpers.createAutoLayout. " +
 		"The file is opened with dynamic-page access, so the sync accessors throw — use setFillStyleIdAsync, setStrokeStyleIdAsync, " +
@@ -766,6 +773,9 @@ func Register(s *mcp.Server, b *bridge.Router) {
 		"Nothing persists between scripts, and globalThis does not survive a plugin reload, so define any helpers inside each script. " +
 		"A bound paint still carries its own colour, which is what renders wherever the variable cannot resolve, so seed it from " +
 		"variable.resolveForConsumer(node).value rather than black. " +
+		"node.resize() resets an auto-layout frame's sizing modes to FIXED without erroring, so a hugging frame resized afterwards renders clipped — " +
+		"resize before setting layoutMode, or set the sizing modes again after. " +
+		"swapComponent invalidates every instance-sublayer handle a findAll returned, so resolve all targets before the first swap and re-find between swaps. " +
 		"Look nodes up by id rather than running findAll over a whole section: one findAll across ~130 large frames timed out at five minutes, " +
 		"while the same work done per node took seconds. " +
 		"Prefer the atomic tools for single edits: they give precise errors, while a failed script can leave the document half-changed."},
@@ -801,7 +811,10 @@ func Register(s *mcp.Server, b *bridge.Router) {
 		Name:        "get_screenshot",
 		Annotations: annotations("get_screenshot"),
 		Description: "Export a PNG screenshot of a node (or the current selection, or the whole page) " +
-			"and return it as an image. Use this to visually verify designs.",
+			"and return it as an image plus its pixel size, and with bounds: true each visible direct child's box in node pixels — " +
+			"the only way to check spacing and centering, since the image itself carries no coordinates. " +
+			"A node longer than max_dimension comes back scaled down with a warning: screenshot a child rather than read the thumbnail. " +
+			"Shows pixels only — for ids, names, text or exact values use get_design_context.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args screenshotArgs) (*mcp.CallToolResult, any, error) {
 		raw, err := b.Call(ctx, args.File, "get_screenshot", args, screenshotTimeout)
 		if err != nil {
@@ -844,8 +857,10 @@ func Register(s *mcp.Server, b *bridge.Router) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "import_image",
 		Annotations: annotations("import_image"),
-		Description: "Import an image from a URL or a project file into Figma, either as the fill of an " +
-			"existing node or as a new rectangle sized to the image.",
+		Description: "Import an image into Figma, either as the fill of an existing node (node_id) or as a new rectangle " +
+			"sized to the image. source is an http(s) URL or a path relative to the project directory, e.g. " +
+			"\"assets/images/hero.png\"; paths outside the project are rejected. The server reads the bytes — the plugin can reach " +
+			"neither disk nor network. This is the inbound direction; download_assets is the outbound one.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args importImageArgs) (*mcp.CallToolResult, any, error) {
 		data, err := loadImageBytes(ctx, args.Source)
 		if err != nil {
