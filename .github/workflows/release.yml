@@ -46,6 +46,14 @@ jobs:
           (cd plugin && zip -r ../plugin.zip .)
           gh release upload "${{ needs.release-please.outputs.tag }}" plugin.zip --clobber
 
-      - name: Publish to npm
+      # Platform packages first: the launcher's optionalDependencies pin this
+      # exact version, so publishing it before them would ship a broken install.
+      - name: Publish platform packages to npm
+        run: |
+          for d in npm/platform/*/; do
+            npm publish --provenance --access public "$d"
+          done
+
+      - name: Publish launcher to npm
         working-directory: npm
-        run: npm publish
+        run: npm publish --provenance

@@ -4,6 +4,7 @@ bin/
 dist/
 plugin.zip
 npm/bin/
+npm/platform/
 npm/README.md
 
 # Local-only internal docs — never published
