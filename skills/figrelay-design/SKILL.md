@@ -97,6 +97,23 @@ Finish with `set_selection` on the root frame so the user sees the result.
   vector path, not dashes.
 - **Batch**: most edit tools take `node_ids`; feed `find_nodes` output straight in.
 
+## Sharing a file with another agent or person
+
+Each Figma file runs one plugin window, and the bridge lets exactly one command
+into it at a time — but only one *command*. Between your `find_nodes` and your
+`set_fills`, another session can delete, move or swap those nodes, and your ids
+go stale (`node not found`, or an edit landing on the wrong layer).
+
+- **One `run_script` is the transaction.** It holds the window from first line to
+  last, so read-then-write — find, decide per node, write — is atomic against
+  other sessions only while it stays inside a single script.
+- **Split the work by frame or section**, one agent each, before splitting by tool.
+- **A script that hits the 5-minute timeout stops being atomic**: the window is
+  released while Figma keeps running it, so the tail interleaves with other
+  sessions. Keep a script to one logical group.
+- The user editing by hand in Figma is a writer too, and `⌘Z` undoes your work
+  as readily as theirs. Re-read before you assume the document is as you left it.
+
 ## `run_script` — the bulk path
 
 Default for anything token-shaped (importing 150 variables as 150 calls is absurd)

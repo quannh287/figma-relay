@@ -64,3 +64,4 @@ All sessions and all Figma files share **one local bridge** on port 2000 (overri
 
 - **Several Figma files** — run the plugin in each file. With more than one connected, every tool accepts a `file` parameter (file name, case-insensitive substring, or key) and `list_files` shows what is connected, so one session can copy a color from *Design System* into *Landing Page*. With one file connected, nothing changes.
 - **Several code projects** — each session reaches every connected file through the shared bridge. Name the file you mean in the prompt.
+- **Several agents on one file** — supported, and the bridge runs their commands one at a time per file, so a long screenshot no longer times out somebody else's call. It cannot make a *sequence* atomic: between one agent's `find_nodes` and its `set_fills`, another can delete those nodes. Give each agent its own frame or section, and keep read-then-write sequences inside a single `run_script`.

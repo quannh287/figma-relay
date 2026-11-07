@@ -33,6 +33,44 @@ These cost real debugging time; the handlers now absorb them.
 - **`figma` cannot be wrapped.** Its properties are non-configurable and non-writable, so a Proxy `get` trap may not return anything but the original value — returning even `fn.bind(figma)` makes every call throw `proxy: inconsistent get`. A plain object is no better: `for…in figma` yields no keys, so there is nothing to copy. This rules out observing calls from the outside, which is why a failed `run_script` cannot clean up after itself.
 - **`addComponentProperty` with `INSTANCE_SWAP`** wants the component's node id. Its published key is rejected with "Property value is incompatible with component property type".
 
+## Why one command at a time per file
+
+The plugin's `figma.ui.onmessage` is `async` and does not queue, so two sessions
+driving one file used to interleave at every `await`: one resolved node handles
+while the other deleted or swapped those nodes. The bridge now gives each plugin
+window a one-slot turn (`pluginConn.turn`). Two details matter:
+
+- **The wait for a turn sits outside the caller's timeout**, or a 15s call would
+  die behind a 150s screenshot. A peer waits `timeout + maxQueueWait` for the
+  same reason.
+- **A timeout releases the turn.** Figma cannot abort a running command, so
+  holding it would lock the file for everyone until that command finished.
+
+A consequence worth using: `run_script` holds the window for its whole run, so it
+is the transaction boundary for read-then-write sequences — until it times out.
+
+### Not done: per-file leases (phase 1)
+
+The turn protects one call, not a sequence: between an agent's `find_nodes` and
+its `set_fills`, another session can still invalidate the ids. The shape if that
+ever hurts in practice:
+
+- `claim_file {ttl_seconds}` / `release_file`; while a lease is live the bridge
+  rejects *writes* from other sessions and lets reads through, so another agent
+  can still diagnose what is going on.
+- Caller identity has to reach `CallFile`: the owner session is one caller, each
+  peer connection another, so a session id threads through `Router.Call` and the
+  peer protocol — a `ProtocolVersion` bump.
+- Hang protection: TTL is mandatory and capped (~5 min), and a lease is dropped
+  when its peer disconnects.
+- The cost that keeps it unbuilt: two more tools in every session's context,
+  including the single-agent sessions that are the majority.
+
+Trigger to build it: real `node not found` / lost-override failures from two
+sessions, on a sequence that genuinely does not fit in one script. Nothing here
+helps against the user editing by hand, or against `⌘Z` — Figma is a multiplayer
+document and that ceiling stays.
+
 ## Why screenshots report their scale
 
 Output is capped so a huge page cannot return a multi-megabyte payload. A 9336 px frame came back as a 139×2000 thumbnail that looked like a real screenshot, so `get_screenshot` now reports the scale it applied and the source height, and takes `max_dimension`.

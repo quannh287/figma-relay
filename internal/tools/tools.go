@@ -609,7 +609,9 @@ func Register(s *mcp.Server, b *bridge.Router) {
 		"Find nodes by layer name, text content, node type, fill color, font size or font style, in a subtree (node_id), a named page (page), "+
 			"or whichever page is open. The result names the scope it searched — pass page or node_id when it matters, since the open page can change mid-session. "+
 			"Use this instead of walking the tree in large files, and prefer the style filters over guessing a node's role from its size. "+
-			"Feed the returned ids straight into a tool's node_ids to edit the whole match set in one call.",
+			"Feed the returned ids straight into a tool's node_ids to edit the whole match set in one call. "+
+			"The ids are a snapshot: if another session or the user is editing the same file, do the find and the edit inside one run_script, "+
+			"which is the only span the bridge keeps other sessions out of.",
 		bridge.DefaultTimeout)
 	registerBridged[renameArgs](s, b, "rename_nodes",
 		"Rename one or more layers in place. Use this rather than clone_node plus remove_nodes, which breaks every existing instance of a component.",
@@ -778,6 +780,8 @@ func Register(s *mcp.Server, b *bridge.Router) {
 		"swapComponent invalidates every instance-sublayer handle a findAll returned, so resolve all targets before the first swap and re-find between swaps. " +
 		"Look nodes up by id rather than running findAll over a whole section: one findAll across ~130 large frames timed out at five minutes, " +
 		"while the same work done per node took seconds. " +
+		"A script holds the plugin window for its whole run, so it is also the only way to make a read-then-write sequence atomic " +
+		"against other sessions driving the same file — until it times out, after which the window is released while Figma keeps running it. " +
 		"Prefer the atomic tools for single edits: they give precise errors, while a failed script can leave the document half-changed."},
 		func(ctx context.Context, req *mcp.CallToolRequest, args runScriptArgs) (*mcp.CallToolResult, any, error) {
 			raw, err := b.Call(ctx, args.File, "run_script", args, scriptTimeout)
