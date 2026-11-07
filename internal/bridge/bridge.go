@@ -510,7 +510,11 @@ func (b *Bridge) CallFile(ctx context.Context, file, command string, params any,
 				"so it is busy rather than stuck — retry, or run fewer sessions against this file at once",
 				pc.label(), command, timeout, inflight))
 		}
-		return nil, withKind(ErrTimeout, fmt.Sprintf("figma plugin %q did not answer %q within %s", pc.label(), command, timeout))
+		// Nothing else is queued, so this one is slow or stuck — and Figma
+		// cannot abort it, so a blind retry of a write duplicates its work.
+		return nil, withKind(ErrTimeout, fmt.Sprintf("figma plugin %q did not answer %q within %s; "+
+			"it may still be running in Figma, so re-read the document before retrying anything that writes",
+			pc.label(), command, timeout))
 	}
 }
 

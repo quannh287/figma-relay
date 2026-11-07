@@ -1067,7 +1067,7 @@ func resolveProjectPath(p string) (string, error) {
 	}
 	rel, err := filepath.Rel(root, dest)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path %q escapes the project directory %s", p, root)
+		return "", fmt.Errorf("path %q escapes the project directory %s; pass a path inside it, e.g. assets/icons/arrow.svg", p, root)
 	}
 	return dest, nil
 }
