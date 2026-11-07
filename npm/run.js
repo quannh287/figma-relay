@@ -69,6 +69,36 @@ if (process.argv[2] === "install-skills") {
   process.exit(0);
 }
 
+// Subcommand: uninstall — remove only what install-plugin/install-skills wrote.
+// The Figma side and the MCP client config are the user's to undo: no API
+// reaches either, so print them rather than pretend the machine is clean.
+if (process.argv[2] === "uninstall") {
+  const pluginDir = path.join(os.homedir(), "figrelay-plugin");
+  const skillsDir = path.join(process.cwd(), ".claude", "skills");
+  let removed = 0;
+  if (fs.existsSync(pluginDir)) {
+    fs.rmSync(pluginDir, { recursive: true, force: true });
+    process.stdout.write(`  removed ${pluginDir}\n`);
+    removed++;
+  }
+  if (fs.existsSync(skillsDir)) {
+    for (const name of fs.readdirSync(skillsDir)) {
+      if (!name.startsWith("figrelay-")) continue;
+      fs.rmSync(path.join(skillsDir, name), { recursive: true, force: true });
+      process.stdout.write(`  removed ${path.join(skillsDir, name)}\n`);
+      removed++;
+    }
+  }
+  if (!removed) process.stdout.write("  nothing to remove\n");
+  process.stdout.write(
+    "\nTwo steps are left, and only you can do them:\n" +
+      "  1. Figma Desktop → Plugins → Development → right-click Figma Relay → Remove\n" +
+      "  2. Remove the server from your AI client, e.g. claude mcp remove figma-relay\n" +
+      "     (other clients: delete the figma-relay entry from their MCP config file)\n\n",
+  );
+  process.exit(0);
+}
+
 if (!fs.existsSync(binPath)) fail(`binary not found for ${plat}-${arch}`);
 try {
   fs.chmodSync(binPath, 0o755);

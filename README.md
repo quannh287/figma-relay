@@ -110,6 +110,14 @@ npx figrelay@latest install-skills   # writes .claude/skills/figrelay-*/SKILL.md
 
 Other clients can load the same files from [`skills/`](skills/). Edit them to match your conventions.
 
+## Uninstall
+
+```sh
+npx figrelay@latest uninstall   # deletes ~/figrelay-plugin and .claude/skills/figrelay-*
+```
+
+It then names the two steps no script can do for you: remove the plugin in **Figma → Plugins → Development** (right-click → Remove), and drop the server from your AI client (`claude mcp remove figma-relay`, or delete the entry from its MCP config). Nothing else is installed — the server itself only ever lives in the npx cache.
+
 ## Configuration
 
 **Hide tools you don't use.** Every tool takes up context in every session. Set `FIGMA_MCP_DISABLE` to hide whole groups — `components`, `styles`, `variables`, `prototype`:
