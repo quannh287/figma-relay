@@ -95,6 +95,27 @@ function rgbToHex(c) {
   return "#" + h(c.r) + h(c.g) + h(c.b);
 }
 
+function colorHex(c) {
+  const hex = rgbToHex(c);
+  return c.a === undefined || c.a === 1 ? hex : hex + "@" + c.a;
+}
+
+// Tokens are usually aliased two or three collections deep (use -> theme ->
+// palette), which hides every actual value behind VariableIDs. Figma only
+// resolves an alias for a consuming node, so outside one we follow the chain
+// ourselves and pick each hop's mode by name, falling back to its default.
+function resolveAlias(value, byId, collections, modeName, depth) {
+  if (!value || value.type !== "VARIABLE_ALIAS") return value;
+  if (depth > 10) return undefined;
+  const target = byId[value.id];
+  if (!target) return undefined;
+  const c = collections[target.variableCollectionId];
+  if (!c) return undefined;
+  const named = c.modes.filter((m) => m.name.toLowerCase() === String(modeName).toLowerCase())[0];
+  const modeId = named ? named.modeId : c.defaultModeId;
+  return resolveAlias(target.valuesByMode[modeId], byId, collections, modeName, depth + 1);
+}
+
 // A full PaintObject is ~20 lines of JSON (17-digit float channels, complete
 // gradientTransform); compact callers only ever need the color.
 function paintBrief(p) {
@@ -1115,6 +1136,10 @@ const handlers = {
       figma.variables.getLocalVariableCollectionsAsync(),
       figma.variables.getLocalVariablesAsync(),
     ]);
+    const byId = {};
+    for (const v of variables) byId[v.id] = v;
+    const byCollection = {};
+    for (const c of collections) byCollection[c.id] = c;
     return {
       collections: collections.map((c) => ({
         id: c.id,
@@ -1122,13 +1147,27 @@ const handlers = {
         defaultModeId: c.defaultModeId,
         modes: c.modes.map((m) => ({ modeId: m.modeId, name: m.name })),
       })),
-      variables: variables.map((v) => ({
-        id: v.id,
-        name: v.name,
-        resolvedType: v.resolvedType,
-        collectionId: v.variableCollectionId,
-        valuesByMode: v.valuesByMode,
-      })),
+      variables: variables.map((v) => {
+        const c = byCollection[v.variableCollectionId];
+        const resolvedByMode = {};
+        for (const modeId in v.valuesByMode) {
+          const raw = v.valuesByMode[modeId];
+          const isAlias = raw && raw.type === "VARIABLE_ALIAS";
+          if (!isAlias && v.resolvedType !== "COLOR") continue;
+          const mode = c && c.modes.filter((m) => m.modeId === modeId)[0];
+          const r = resolveAlias(raw, byId, byCollection, mode ? mode.name : "", 0);
+          if (r === undefined) continue;
+          resolvedByMode[modeId] = v.resolvedType === "COLOR" && r && typeof r === "object" ? colorHex(r) : r;
+        }
+        return {
+          id: v.id,
+          name: v.name,
+          resolvedType: v.resolvedType,
+          collectionId: v.variableCollectionId,
+          valuesByMode: v.valuesByMode,
+          resolvedByMode,
+        };
+      }),
     };
   },
 

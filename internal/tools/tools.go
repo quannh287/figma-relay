@@ -681,7 +681,12 @@ func Register(s *mcp.Server, b *bridge.Router) {
 		"Apply a local style to a node; PAINT styles go to the fill by default or the stroke via target.",
 		bridge.DefaultTimeout)
 	registerBridged[emptyArgs](s, b, "get_variable_defs",
-		"Get all local variable collections (with modes) and variables (design tokens) with their values per mode.",
+		"Get all local variable collections (with modes) and variables (design tokens) with their values per mode. "+
+			"valuesByMode holds the raw value, which for an aliased token is only the VariableID it points at; "+
+			"resolvedByMode follows that chain to the end and gives colours as hex, so you never have to join collections by hand. "+
+			"A colour variable carrying alpha comes back as hex@alpha (#0b2a2b@0.12), the same form find_nodes uses for fills — "+
+			"binding a variable to a paint drops the paint's own opacity, so that alpha is the only copy. "+
+			"A cross-collection hop picks the target mode whose name matches (Light, Dark), falling back to that collection's default mode.",
 		bridge.DefaultTimeout)
 	registerBridged[variableCollectionArgs](s, b, "create_variable_collection",
 		"Create a variable collection for design tokens, optionally naming its default mode (e.g. light).",
