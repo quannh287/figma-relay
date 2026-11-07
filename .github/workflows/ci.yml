@@ -1,10 +1,15 @@
 name: ci
 
+# No `push: main`: PRs are built on refs/pull/N/merge, so a merge would re-test
+# an identical tree. release.yml re-runs the tests before it publishes.
 on:
-  push:
-    branches: [master, main]
   pull_request:
   workflow_dispatch:
+
+# A new commit on a PR makes the run for the previous one pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

@@ -1,28 +1,29 @@
 #!/usr/bin/env node
-// Run the Go binary bundled in the npm package — NO network/GitHub download.
-// stdout is the MCP transport → all wrapper logs go to stderr.
+// Run the Go binary from this platform's optional dependency — NO network/GitHub
+// download. stdout is the MCP transport → all wrapper logs go to stderr.
 "use strict";
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const plat = process.platform === "win32" ? "windows" : process.platform; // darwin|linux|windows
-const arch = { x64: "amd64", arm64: "arm64" }[process.arch];
 function fail(m) {
   process.stderr.write(`figrelay: ${m}\n`);
   process.exit(1);
 }
-if (!arch || !["darwin", "linux", "windows"].includes(plat))
-  fail(`unsupported platform: ${process.platform}/${process.arch}`);
 
-const exe = plat === "windows" ? ".exe" : "";
-const binPath = path.join(
-  __dirname,
-  "bin",
-  `${plat}-${arch}`,
-  `figma-mcp${exe}`,
-);
+// The platform packages are named after npm's own os/cpu values, so this needs
+// no mapping table; npm installs exactly the one matching this machine.
+const platformPkg = `figrelay-${process.platform}-${process.arch}`;
+function resolveBinary() {
+  const exe = process.platform === "win32" ? ".exe" : "";
+  try {
+    const dir = path.dirname(require.resolve(`${platformPkg}/package.json`));
+    return path.join(dir, `figma-mcp${exe}`);
+  } catch (_) {
+    return null; // not installed: unsupported platform, or an npm --no-optional install
+  }
+}
 
 // Subcommand: install-plugin — extract the plugin into a VISIBLE folder (no leading dot)
 // and open that folder so the user sees manifest.json right away.
@@ -44,7 +45,11 @@ if (process.argv[2] === "install-plugin") {
 
   // Open the folder in the file manager (best-effort; ignore errors).
   const opener =
-    plat === "darwin" ? "open" : plat === "windows" ? "explorer" : "xdg-open";
+    process.platform === "darwin"
+      ? "open"
+      : process.platform === "win32"
+        ? "explorer"
+        : "xdg-open";
   try {
     spawnSync(opener, [destDir], { stdio: "ignore", detached: true });
   } catch (_) {}
@@ -91,15 +96,23 @@ if (process.argv[2] === "uninstall") {
   }
   if (!removed) process.stdout.write("  nothing to remove\n");
   process.stdout.write(
-    "\nTwo steps are left, and only you can do them:\n" +
+    "\nThree steps are left, and only you can do them:\n" +
       "  1. Figma Desktop → Plugins → Development → right-click Figma Relay → Remove\n" +
       "  2. Remove the server from your AI client, e.g. claude mcp remove figma-relay\n" +
-      "     (other clients: delete the figma-relay entry from their MCP config file)\n\n",
+      "     (other clients: delete the figma-relay entry from their MCP config file)\n" +
+      "  3. Drop the package itself: npm uninstall -g figrelay\n" +
+      "     (npx users: npm cache clean --force)\n\n",
   );
   process.exit(0);
 }
 
-if (!fs.existsSync(binPath)) fail(`binary not found for ${plat}-${arch}`);
+const binPath = resolveBinary();
+if (!binPath || !fs.existsSync(binPath))
+  fail(
+    `no prebuilt server for ${process.platform}/${process.arch}.\n` +
+      `  Expected the optional dependency ${platformPkg}.\n` +
+      `  If you installed with --no-optional or --omit=optional, reinstall without it.`,
+  );
 try {
   fs.chmodSync(binPath, 0o755);
 } catch (_) {}

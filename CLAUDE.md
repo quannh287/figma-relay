@@ -15,7 +15,7 @@ go test -run TestName ./internal/bridge   # a single test
 go vet ./...
 go run ./cmd/figma-mcp        # local server, version reports "dev"
 go run ./cmd/figma-mcp -port 2001   # or FIGMA_MCP_PORT
-./npm/build.sh                # cross-compile 6 binaries + copy plugin into npm/bin/
+./npm/build.sh                # build 6 platform packages (npm/platform/) + plugin & skills (npm/bin/)
 ```
 
 There is no root `package.json` and no Makefile. The npm package lives in `npm/` only.
@@ -35,7 +35,7 @@ Three processes, one hop each: **MCP client → Go server (stdio) → WebSocket 
 
 - **Port 2000** appears in `main.go` (`defaultPort`), `plugin/manifest.json` (`devAllowedDomains`) and `ui.html`.
 - **`bridge.ProtocolVersion`** — bump on any breaking change to the command set or message shape; `ui.html` carries the matching constant and warns in its status line on mismatch.
-- **Version** — single source of truth is `npm/package.json`; `npm/build.sh` injects it via `-ldflags -X main.version=`. release-please bumps it; merging its release PR makes `release.yml` build, attach `plugin.zip` and `npm publish`.
+- **Version** — single source of truth is `npm/package.json`; `npm/build.sh` injects it via `-ldflags -X main.version=`. release-please bumps it; `build.sh` then pins the six `figrelay-<os>-<cpu>` optionalDependencies to it. Merging the release PR makes `release.yml` build, attach `plugin.zip`, publish the six platform packages, **then** the launcher — that order matters, since the launcher's pins would otherwise point at versions that do not exist yet.
 - A new tool means: args struct + `registerBridged` call in `tools.go` **and** a handler in `plugin/code.js`.
 
 ### Multi-file routing

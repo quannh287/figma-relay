@@ -10,8 +10,17 @@
   },
   "files": [
     "run.js",
-    "bin/"
+    "bin/plugin/",
+    "bin/skills/"
   ],
+  "optionalDependencies": {
+    "figrelay-darwin-arm64": "0.11.0",
+    "figrelay-darwin-x64": "0.11.0",
+    "figrelay-linux-arm64": "0.11.0",
+    "figrelay-linux-x64": "0.11.0",
+    "figrelay-win32-x64": "0.11.0",
+    "figrelay-win32-arm64": "0.11.0"
+  },
   "engines": {
     "node": ">=18"
   },
