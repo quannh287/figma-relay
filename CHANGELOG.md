@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/quannh287/figma-relay/compare/v0.12.0...v0.12.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **npm:** name the Windows platform packages "windows", not "win32" ([#16](https://github.com/quannh287/figma-relay/issues/16)) ([f83900e](https://github.com/quannh287/figma-relay/commit/f83900e34eef623f4d720c5b8748eaecea131e41))
+
 ## [0.12.0](https://github.com/quannh287/figma-relay/compare/v0.11.0...v0.12.0) (2026-11-07)
 
 
