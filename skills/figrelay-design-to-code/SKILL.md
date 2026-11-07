@@ -8,6 +8,24 @@ description: Turn a Figma frame, component or selection into code in this reposi
 Goal: code that matches the design **using this codebase's own components and
 tokens**. A pixel-perfect one-off built from raw divs and hex codes is a failure.
 
+## 0. Identify the stack, then its design system
+
+Do this before reading the design: it decides what "matching" even means. Detect
+from the repo, never from the prompt.
+
+| Evidence | Stack | Design system to read first |
+|---|---|---|
+| `package.json` with `react-native` / `expo` | React Native | theme module, `restyle`/NativeWind config, `StyleSheet` constants |
+| `package.json` with `react`/`next`/`vue` | Web | Tailwind config, CSS custom properties **in source**, `theme.ts` |
+| `pubspec.yaml` | Flutter | `ThemeData` / `ColorScheme`, a `tokens.dart` / `app_theme.dart` |
+| `*.xcodeproj`, `Package.swift` | SwiftUI / UIKit | asset catalog colors, `DesignSystem.swift` / `Theme.swift` |
+| `build.gradle(.kts)` with `compose` | Compose | `MaterialTheme`, `Color.kt`, `Type.kt`, `Dimens.kt` |
+
+Grep for the token source and the component directory; read the config source,
+never a built stylesheet. Monorepo or two stacks? Ask which one this screen is
+for. No design system at all is itself the finding — say so, and ask whether to
+add tokens or hard-code this one screen.
+
 ## 1. Read the design
 
 - `get_selection` when the user says "this" / "the selected frame"; otherwise
@@ -28,9 +46,18 @@ tokens**. A pixel-perfect one-off built from raw divs and hex codes is a failure
   `:root` block.
 - `get_local_components` → named components in the design. Grep this repo for the
   same concept (Button, Card, Modal) and reuse it. Only build new when nothing fits.
-- Auto layout maps onto flex: `direction` → `flex-direction`, `item_spacing` →
-  `gap`, padding → padding, sizing modes → `fixed` / `hug` (fit-content) /
-  `fill` (flex: 1). Absolutely positioned children are the exception, not the rule.
+- Auto layout is the layout, per stack. Absolutely positioned children are the
+  exception, not the rule — rebuild them as layout wherever you can.
+
+  | Figma | Web / React Native | Flutter | SwiftUI | Compose |
+  |---|---|---|---|---|
+  | HORIZONTAL / VERTICAL | `flex-direction: row` / `column` | `Row` / `Column` | `HStack` / `VStack` | `Row` / `Column` |
+  | `item_spacing` | `gap` | `spacing:` (or `SizedBox`) | `spacing:` | `Arrangement.spacedBy` |
+  | padding | `padding` | `Padding` | `.padding()` | `Modifier.padding` |
+  | `primary_axis_align` | `justify-content` | `mainAxisAlignment` | alignment / `Spacer` | `Arrangement` |
+  | `counter_axis_align` | `align-items` | `crossAxisAlignment` | `alignment:` | `Alignment` |
+  | sizing AUTO (hug) | `fit-content` | `MainAxisSize.min` | default | `wrapContent` |
+  | sizing FIXED + stretch (fill) | `flex: 1` | `Expanded` | `.frame(maxWidth: .infinity)` | `weight(1f)` |
 - Fixed pixel widths in the design usually mean "fill the container" in code.
   Ask what the responsive behaviour is rather than hard-coding 390px.
 
@@ -39,15 +66,28 @@ tokens**. A pixel-perfect one-off built from raw divs and hex codes is a failure
 `download_assets`, one item per node, chosen per node after checking its type and
 fills:
 
-- **SVG** for pure vector — icons, logos, path illustrations.
+- **SVG** for pure vector — icons, logos, path illustrations — *where the stack
+  renders SVG*. See the table: outside the web it usually needs a dependency.
 - **PNG at `scale: 2`** for anything with a raster IMAGE fill, a photo, or
   blur/shadow effects SVG cannot represent.
 - **JPG** only for large photos where size matters.
 
+| Stack | Vector icons | Where they go |
+|---|---|---|
+| Web | SVG | wherever existing icons live |
+| React Native | SVG only if `react-native-svg` is already a dependency, else PNG at 2x and 3x | the existing asset folder |
+| Flutter | SVG only if `flutter_svg` is already in `pubspec.yaml`, else PNG at 2x and 3x | `assets/`, and register the folder in `pubspec.yaml` |
+| SwiftUI / UIKit | PDF or SVG inside the asset catalog (single scale, preserve vector); prefer an SF Symbol when one exists | `*.xcassets` |
+| Compose | VectorDrawable XML, or PNG — Android does not read SVG | `res/drawable/` |
+
+**Never add a dependency just to render an exported icon.** Check what the repo
+already has; if it cannot read SVG, export PNG and say why.
+
 Paths follow this project's conventions (check `CLAUDE.md` / `AGENTS.md` and
 where existing assets live). Without a convention, defaults are
-`assets/icons/<name>.svg` and `assets/images/<name>.<ext>`. Everything is written
-relative to the directory the MCP server runs in and cannot escape it.
+`assets/icons/<name>.svg` and `assets/images/<name>.<ext>` — web-shaped, so on a
+native stack pass an explicit `path`. Everything is written relative to the
+directory the MCP server runs in and cannot escape it.
 
 ## 4. Verify
 
@@ -57,6 +97,8 @@ usual misses. State plainly what you could not match and why.
 
 ## Don't
 
-- Don't copy absolute x/y into CSS. Rebuild with flex from the auto layout.
+- Don't copy absolute x/y into layout code. Rebuild from the auto layout.
+- Don't write web idioms into a native stack: no `px` strings in Flutter, no
+  `className` in SwiftUI. Follow the files already in the repo.
 - Don't invent token names. Use the repo's, or flag the gap.
 - Don't export a whole frame as one PNG to "save time" — export its real assets.

@@ -10,9 +10,13 @@ run the whole thing in one go.
 
 ## Phase 1 — Discovery (read only)
 
-- In the repo: find the **token source file** (theme config, design-tokens JSON,
-  Tailwind config, CSS custom properties in source form) and the per-component
-  style definitions (`tva({...})`, variant maps, style objects). Grep, don't guess.
+- In the repo: find the **token source file** and the per-component style
+  definitions (`tva({...})`, variant maps, style objects). Grep, don't guess.
+  Where the tokens live depends on the stack: Tailwind config / CSS custom
+  properties in source form / `theme.ts` (web), a theme module or NativeWind
+  config (React Native), `ThemeData` / `ColorScheme` / `tokens.dart` (Flutter),
+  the asset catalog plus `Theme.swift` (SwiftUI), `Color.kt` / `Type.kt` /
+  `Dimens.kt` under `MaterialTheme` (Compose).
 - In Figma: `get_variable_defs`, `get_local_styles`, `get_local_components`,
   `list_pages` — what already exists.
 - **Check the plan's mode limit** before promising light/dark via modes — see
