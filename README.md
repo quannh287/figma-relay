@@ -49,8 +49,10 @@ Config file locations for Claude Desktop, Codex, VS Code, Cursor and Antigravity
 
 ### 2. Install the plugin (once)
 
-1. Run `npx figrelay@latest install-plugin`. It saves the plugin to a folder and opens it. Or download [plugin.zip](https://github.com/quannh287/figma-relay/releases/latest) and unzip it.
+1. Run `npx figrelay@latest install-plugin`. It writes the plugin to `~/figrelay-plugin` and opens that folder. Or download [plugin.zip](https://github.com/quannh287/figma-relay/releases/latest) and unzip it anywhere.
 2. In Figma Desktop: **Plugins → Development → Import plugin from manifest…** and pick `manifest.json` from that folder.
+
+Figma Desktop can only load a development plugin from a folder on your machine, so this import is unavoidable — but it is once per machine, not per project. Figma reads the files from that folder every time the plugin runs, so **to update it later, re-run `install-plugin` and re-open the plugin window** — no second import, as long as the folder is the same.
 
 ### 3. Run the plugin
 
@@ -141,6 +143,7 @@ Other clients can load the same files from [`skills/`](skills/). Edit them to ma
 | Server doesn't show up in the AI client | Check `node -v` is 18 or newer, then restart the client |
 | Exported files in the wrong folder | Register the server in the project's config, or give the AI a full path |
 | Font error when creating text | That font isn't installed on your machine; the error names it |
+| "unknown command", or the plugin warns about a version mismatch | The plugin is older than the server: `npx figrelay@latest install-plugin`, then close and re-open the plugin window |
 
 ## More
 
