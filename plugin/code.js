@@ -151,13 +151,13 @@ const FILE_KEY_DATA = "figma-mcp-file-key";
 let fileKey = figma.fileKey || "";
 try {
   if (!fileKey) fileKey = figma.root.getPluginData(FILE_KEY_DATA) || "";
-} catch (e) {}
+} catch (e) {} // no pluginData on this file: links stay off until the user pastes a URL
 
 function setFileKey(key) {
   fileKey = key || "";
   try {
     figma.root.setPluginData(FILE_KEY_DATA, fileKey);
-  } catch (e) {}
+  } catch (e) {} // read-only file: the key still works for this session
 }
 
 // nodeLink builds a shareable figma.com URL that jumps straight to a node (the
