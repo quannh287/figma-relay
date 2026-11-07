@@ -12,9 +12,10 @@ function fail(m) {
   process.exit(1);
 }
 
-// The platform packages are named after npm's own os/cpu values, so this needs
-// no mapping table; npm installs exactly the one matching this machine.
-const platformPkg = `figrelay-${process.platform}-${process.arch}`;
+// Platform packages are named after npm's own os/cpu values, except that the
+// registry's spam filter 403s any new package name containing "win32".
+const osName = process.platform === "win32" ? "windows" : process.platform;
+const platformPkg = `figrelay-${osName}-${process.arch}`;
 function resolveBinary() {
   const exe = process.platform === "win32" ? ".exe" : "";
   try {
