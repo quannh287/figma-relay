@@ -4,6 +4,15 @@ name: ci
 # an identical tree. release.yml re-runs the tests before it publishes.
 on:
   pull_request:
+    # Everything this job actually checks. Docs, skills and the README cannot
+    # break it, so they do not get a runner.
+    paths:
+      - "**.go"
+      - go.mod
+      - go.sum
+      - "plugin/**"
+      - "npm/**"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 # A new commit on a PR makes the run for the previous one pointless.
@@ -21,9 +30,10 @@ jobs:
           go-version: stable
       - run: go vet ./...
       - run: go test -race ./...
-      # Figma is the only thing that runs the plugin, so catch syntax errors here.
-      - name: Check plugin JS syntax
+      # Nothing but Figma and npx ever run this JS, so catch syntax errors here.
+      - name: Check shipped JS syntax
         run: |
           node --check plugin/code.js
+          node --check npm/run.js
           awk '/<script>/{f=1;next}/<\/script>/{f=0}f' plugin/ui.html > "$RUNNER_TEMP/ui.js"
           node --check "$RUNNER_TEMP/ui.js"
