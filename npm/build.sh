@@ -10,21 +10,23 @@ rm -rf "$OUT" "$PLATFORMS"
 # binary so the MCP server reports the same version it was published under.
 VERSION=$(node -p "require('./npm/package.json').version")
 
-# Directories carry npm's own os/cpu names, not Go's, so run.js can resolve
-# `figrelay-${process.platform}-${process.arch}` with no mapping table.
-TARGETS="darwin:arm64:darwin:arm64
-darwin:x64:darwin:amd64
-linux:arm64:linux:arm64
-linux:x64:linux:amd64
-win32:x64:windows:amd64
-win32:arm64:windows:arm64"
+# Package names follow npm's own os/cpu values so run.js can build them from
+# process.platform/process.arch. Windows is the exception: the registry's spam
+# filter rejects any new package name containing "win32" with a 403.
+# Fields are npmname:npmcpu:npmos:goos:goarch.
+TARGETS="darwin:arm64:darwin:darwin:arm64
+darwin:x64:darwin:darwin:amd64
+linux:arm64:linux:linux:arm64
+linux:x64:linux:linux:amd64
+windows:x64:win32:windows:amd64
+windows:arm64:win32:windows:arm64"
 
 echo "→ building 6 platform packages (v$VERSION)..."
 NAMES=""
 for t in $TARGETS; do
-  IFS=: read -r npmos npmcpu goos goarch <<<"$t"
-  pkg="figrelay-$npmos-$npmcpu"
-  dir="$PLATFORMS/$npmos-$npmcpu"
+  IFS=: read -r name npmcpu npmos goos goarch <<<"$t"
+  pkg="figrelay-$name-$npmcpu"
+  dir="$PLATFORMS/$name-$npmcpu"
   ext=""; [ "$goos" = "windows" ] && ext=".exe"
   echo "   $pkg"
   mkdir -p "$dir"
