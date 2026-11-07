@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/quannh287/figma-relay/compare/v0.11.0...v0.12.0) (2026-11-07)
+
+
+### Features
+
+* **npm:** ship one prebuilt binary per platform ([#13](https://github.com/quannh287/figma-relay/issues/13)) ([76deeeb](https://github.com/quannh287/figma-relay/commit/76deeebbe0152b9cc2098eec5855f5bd0427dfc0))
+
 ## [0.11.0](https://github.com/quannh287/figma-relay/compare/v0.10.0...v0.11.0) (2026-11-07)
 
 
